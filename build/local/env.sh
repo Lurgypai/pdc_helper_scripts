@@ -11,3 +11,7 @@ export HG_HOST=${HG_HOST:-127.0.0.1}
 export OMPI_MCA_rmaps_base_oversubscribe=1
 export PDC_TMPDIR=${PDC_TMPDIR:-$PWD/pdc_tmp}
 export PDC_DATA_LOC=${PDC_DATA_LOC:-$PWD/pdc_data}
+
+# Transformation libraries (ZFP, SZ3, TurboPFor, libsodium, cuSZ) built by build.sh.
+source "$(dirname "${BASH_SOURCE[0]}")/../common.sh"
+tf_env

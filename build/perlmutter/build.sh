@@ -1,6 +1,6 @@
 #!/bin/bash
 # Build Mercury and PDC on Perlmutter (login node).
-#   build/perlmutter/build.sh [mercury] [pdc]    default: both
+#   build/perlmutter/build.sh [mercury] [tf] [pdc]    default: all
 # libfabric is the system one from the default environment (cxi and tcp providers): the
 # docs' libfabric 1.18.0 has no cxi provider. Mercury 2.2.0 cannot use cxi (it
 # sets av_attr.rx_ctx_bits, which cxi rejects) and 2.4.0 does not compile
@@ -33,14 +33,15 @@ build_mercury() {
 }
 
 build_pdc() {
-  pdc_build "$SRC/build-pdc" "$PDC_DIR" -DCMAKE_C_COMPILER=cc -DPDC_ENABLE_LUSTRE=ON \
-    -DMERCURY_DIR="$MERCURY_DIR/share/cmake/mercury" -DCMAKE_PREFIX_PATH="$MERCURY_DIR"
+  need "$MERCURY_DIR/include/mercury.h" mercury
+  # shellcheck disable=SC2046
+  pdc_build "$SRC/build-pdc" "$PDC_DIR" -DCMAKE_C_COMPILER=cc -DPDC_ENABLE_LUSTRE=ON $(mercury_args "$MERCURY_DIR")
   # A PDC setup script in the login shell can point CMake at another Mercury.
   grep -q "^MERCURY_DIR:[A-Z]*=$MERCURY_DIR/" "$SRC/build-pdc/CMakeCache.txt" ||
     { echo "PDC configured against $(grep '^MERCURY_DIR:' "$SRC/build-pdc/CMakeCache.txt")" >&2; exit 1; }
 }
 
-for c in ${*:-mercury pdc}; do
+for c in ${*:-mercury tf pdc}; do
   echo "=== $c"
   "build_$c"
 done

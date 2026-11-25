@@ -1,7 +1,7 @@
 #!/bin/bash
 # Build libfabric, Mercury and PDC on Tuolumne (login node, or inside
 # `flux alloc -N1` for a faster build).
-#   build/tuolumne/build.sh [libfabric] [mercury] [pdc]    default: all
+#   build/tuolumne/build.sh [libfabric] [mercury] [tf] [pdc]    default: all
 set -euo pipefail
 source "$(dirname "$0")/env.sh"
 source "$(dirname "$0")/../common.sh"
@@ -16,12 +16,14 @@ build_pdc() {
   # Cray clang: PDC_TIMING globals are defined in a header, so linking needs
   # -fcommon (PDC adds it for GCC only). TOSS 4's glibc keeps shm_open in
   # librt, which PDC does not link.
-  pdc_build "$SRC/build-pdc" "$PDC_DIR" -DCMAKE_C_COMPILER="$MPICC" \
-    -DMERCURY_DIR="$PDC_DIR/share/cmake/mercury" -DCMAKE_PREFIX_PATH="$PDC_DIR" \
+  need "$PDC_DIR/lib/libfabric.so" libfabric
+  need "$PDC_DIR/include/mercury.h" mercury
+  # shellcheck disable=SC2046
+  pdc_build "$SRC/build-pdc" "$PDC_DIR" -DCMAKE_C_COMPILER="$MPICC" $(mercury_args "$PDC_DIR") \
     -DCMAKE_C_FLAGS=-fcommon -DCMAKE_C_STANDARD_LIBRARIES=-lrt
 }
 
-for c in ${*:-libfabric mercury pdc}; do
+for c in ${*:-libfabric mercury tf pdc}; do
   echo "=== $c"
   "build_$c"
 done
