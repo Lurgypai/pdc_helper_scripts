@@ -23,11 +23,35 @@ pdc_checkout() {
   echo "PDC source $PDC_SRC ($at $(git -C "$PDC_SRC" describe --always --dirty))"
 }
 
+# CMake args that hand PDC a Mercury install directly. PDC's FindMERCURY.cmake
+# looks for mercury.h under ${MERCURY_DIR}, which is Mercury's CMake config
+# directory once its config file is found, so the header is not always found.
+# mercury_args <mercury prefix>
+mercury_args() {
+  local m=$1 lib=$1/lib
+  [ -e "$lib/libmercury.so" ] || lib=$1/lib64
+  echo "-DMERCURY_DIR=$m/share/cmake/mercury -DCMAKE_PREFIX_PATH=$m -DMERCURY_INCLUDE_DIR=$m/include" \
+    "-DMERCURY_LIBRARY=$lib/libmercury.so -DMERCURY_NA_LIBRARY=$lib/libna.so" \
+    "-DMERCURY_UTIL_LIBRARY=$lib/libmercury_util.so"
+}
+
+# need <file> <step...>: run the build steps first when <file> is missing,
+# so `build.sh pdc` on a fresh machine builds its dependencies too.
+need() {
+  local f=$1
+  shift
+  [ -e "$f" ] && return 0
+  echo "=== $f missing, building $* first"
+  local c
+  for c in "$@"; do "build_$c"; done
+}
+
 # pdc_build <build dir> <install prefix> [cmake args...]
 pdc_build() {
   local b=$1 p=$2
   shift 2
   pdc_checkout
+  build_tf
   [ "${CLEAN:-0}" = 1 ] && rm -rf "$b"
   cmake -S "$PDC_SRC" -B "$b" -DCMAKE_BUILD_TYPE=${BUILD_TYPE:-Release} -DCMAKE_INSTALL_PREFIX="$p" \
     -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DBUILD_SHARED_LIBS=ON \
@@ -58,4 +82,79 @@ build_mercury_docs() {     # <cc> <prefix>
     -DCMAKE_INSTALL_PREFIX="$2" -DCMAKE_PREFIX_PATH="$2" -DBUILD_SHARED_LIBS=ON -DBUILD_TESTING=OFF \
     -DMERCURY_USE_BOOST_PP=ON -DMERCURY_USE_CHECKSUMS=OFF -DNA_USE_OFI=ON -DNA_USE_SM=OFF
   cmake --build "$SRC/build-mercury" -j"${J:-8}" && cmake --install "$SRC/build-mercury"
+}
+
+# In-flight transformation dependencies, at the versions PDC's CI uses
+# (.github/workflows/dependencies-linux.sh): ZFP 1.0.1, SZ3 v3.4.0, TurboPFor
+# (pinned commit), libsodium 1.0.20. With GPU=1 also CUDA (from the loaded
+# toolkit) and cuSZ, and ZFP is built with CUDA. PDC enables each
+# transformation when its *_DIR variable is set (tf_env), so build these
+# before configuring PDC.
+TF_PREFIX=${TF_PREFIX:-$PDC_PREFIX/tf}
+CUSZ_REF=${CUSZ_REF:-4aa42be6e7bb11cba566cadf0192b424c1ce675f}  # last commit with capi_psz_make_timerecord, which PDC calls
+TURBO_REF=1f646d98d65ee91befd3066f351f2cf386593442
+
+tf_env() {
+  local d
+  [ -e "$TF_PREFIX/zfp/include/zfp.h" ] && export ZFP_ROOT_DIR=$TF_PREFIX/zfp
+  [ -e "$TF_PREFIX/sz3/include/SZ3c/sz3c.h" ] && export SZ_CPU_DIR=$TF_PREFIX/sz3
+  [ -e "$TF_PREFIX/turbopfor/libic.a" ] && export TURBO_DIR=$TF_PREFIX/turbopfor
+  [ -e "$TF_PREFIX/libsodium/include/sodium.h" ] && export LIBSODIUM_ROOT_DIR=$TF_PREFIX/libsodium
+  if [ "${GPU:-0}" = 1 ] && [ -e "$TF_PREFIX/cusz/include/cusz/cusz.h" ]; then
+    export CUDA_ROOT_DIR=${CUDA_ROOT_DIR:-$CUDA_HOME} CUSZ_GPU_DIR=$TF_PREFIX/cusz
+  fi
+  for d in zfp sz3 libsodium cusz; do
+    [ -d "$TF_PREFIX/$d/lib" ] && LD_LIBRARY_PATH=$TF_PREFIX/$d/lib:$LD_LIBRARY_PATH
+    [ -d "$TF_PREFIX/$d/lib64" ] && LD_LIBRARY_PATH=$TF_PREFIX/$d/lib64:$LD_LIBRARY_PATH
+  done
+  export LD_LIBRARY_PATH
+}
+
+tf_clone() {   # <url> <ref> <dir>
+  [ -d "$3/.git" ] || git clone -q "$1" "$3"
+  git -C "$3" checkout -q "$2"
+}
+
+build_zfp() {
+  local cuda=()
+  [ "${GPU:-0}" = 1 ] && cuda=(-DZFP_WITH_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES="${CUDA_ARCH:-80}")
+  tf_clone https://github.com/LLNL/zfp.git 1.0.1 "$SRC/zfp"
+  cmake -S "$SRC/zfp" -B "$SRC/build-zfp" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$TF_PREFIX/zfp" \
+    -DBUILD_TESTING=OFF -DBUILD_UTILITIES=OFF "${cuda[@]}"
+  cmake --build "$SRC/build-zfp" -j"${J:-8}" && cmake --install "$SRC/build-zfp"
+}
+
+build_sz3() {
+  tf_clone https://github.com/szcompressor/SZ3.git v3.4.0 "$SRC/sz3"
+  cmake -S "$SRC/sz3" -B "$SRC/build-sz3" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$TF_PREFIX/sz3" \
+    -DBUILD_TESTING=OFF
+  cmake --build "$SRC/build-sz3" -j"${J:-8}" && cmake --install "$SRC/build-sz3"
+}
+
+build_turbopfor() {   # PDC wants include/ic.h and libic.a directly in TURBO_DIR
+  tf_clone https://github.com/powturbo/TurboPFor-Integer-Compression.git "$TURBO_REF" "$TF_PREFIX/turbopfor"
+  make -C "$TF_PREFIX/turbopfor" -j"${J:-8}" libic.a
+}
+
+build_libsodium() {
+  fetch https://download.libsodium.org/libsodium/releases/libsodium-1.0.20.tar.gz libsodium-1.0.20.tar.gz
+  rm -rf "$SRC/libsodium-1.0.20" && tar xzf "$SRC/libsodium-1.0.20.tar.gz" -C "$SRC"
+  (cd "$SRC/libsodium-1.0.20" && ./configure -q --prefix="$TF_PREFIX/libsodium" && make -s -j"${J:-8}" && make -s install)
+}
+
+build_cusz() {
+  tf_clone https://github.com/szcompressor/cuSZ.git "$CUSZ_REF" "$SRC/cusz"
+  cmake -S "$SRC/cusz" -B "$SRC/build-cusz" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$TF_PREFIX/cusz" \
+    -DPSZ_BACKEND=CUDA -DPSZ_BUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -DCMAKE_CUDA_ARCHITECTURES="${CUDA_ARCH:-80}"
+  cmake --build "$SRC/build-cusz" -j"${J:-8}" && cmake --install "$SRC/build-cusz"
+}
+
+# All transformation dependencies that are not installed yet.
+build_tf() {
+  need "$TF_PREFIX/zfp/include/zfp.h" zfp
+  need "$TF_PREFIX/sz3/include/SZ3c/sz3c.h" sz3
+  need "$TF_PREFIX/turbopfor/libic.a" turbopfor
+  need "$TF_PREFIX/libsodium/include/sodium.h" libsodium
+  [ "${GPU:-0}" = 1 ] && need "$TF_PREFIX/cusz/include/cusz/cusz.h" cusz
+  tf_env
 }
