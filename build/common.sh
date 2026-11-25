@@ -56,7 +56,7 @@ pdc_build() {
   cmake -S "$PDC_SRC" -B "$b" -DCMAKE_BUILD_TYPE=${BUILD_TYPE:-Release} -DCMAKE_INSTALL_PREFIX="$p" \
     -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DBUILD_SHARED_LIBS=ON \
     -DBUILD_TESTING=${PDC_TESTS:-OFF} -DBUILD_MPI_TESTING=${PDC_TESTS:-OFF} \
-    -DPDC_ENABLE_MPI=ON -DPDC_SERVER_CACHE=ON "$@"
+    -DPDC_ENABLE_MPI=ON -DPDC_SERVER_CACHE=ON -DCUDA_ENABLED=$([ "${PDC_GPU:-0}" = 1 ] && echo ON || echo OFF) "$@"
   cmake --build "$b" -j"${J:-8}"
   cmake --install "$b"
   echo "PDC -> $p"
@@ -102,6 +102,9 @@ tf_env() {
   [ -e "$TF_PREFIX/libsodium/include/sodium.h" ] && export LIBSODIUM_ROOT_DIR=$TF_PREFIX/libsodium
   if [ "${PDC_GPU:-0}" = 1 ] && [ -e "$TF_PREFIX/cusz/include/cusz/cusz.h" ]; then
     export CUDA_ROOT_DIR=${CUDA_ROOT_DIR:-$CUDA_HOME} CUSZ_GPU_DIR=$TF_PREFIX/cusz
+  else
+    # PDC turns on CUDA whenever CUDA_ROOT_DIR is set, e.g. by a login profile.
+    unset CUDA_ROOT_DIR CUSZ_GPU_DIR
   fi
   for d in zfp sz3 libsodium cusz; do
     [ -d "$TF_PREFIX/$d/lib" ] && LD_LIBRARY_PATH=$TF_PREFIX/$d/lib:$LD_LIBRARY_PATH
