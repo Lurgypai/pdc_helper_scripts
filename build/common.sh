@@ -86,7 +86,7 @@ build_mercury_docs() {     # <cc> <prefix>
 
 # In-flight transformation dependencies, at the versions PDC's CI uses
 # (.github/workflows/dependencies-linux.sh): ZFP 1.0.1, SZ3 v3.4.0, TurboPFor
-# (pinned commit), libsodium 1.0.20. With GPU=1 also CUDA (from the loaded
+# (pinned commit), libsodium 1.0.20. With PDC_GPU=1 also CUDA (from the loaded
 # toolkit) and cuSZ, and ZFP is built with CUDA. PDC enables each
 # transformation when its *_DIR variable is set (tf_env), so build these
 # before configuring PDC.
@@ -100,7 +100,7 @@ tf_env() {
   [ -e "$TF_PREFIX/sz3/include/SZ3c/sz3c.h" ] && export SZ_CPU_DIR=$TF_PREFIX/sz3
   [ -e "$TF_PREFIX/turbopfor/libic.a" ] && export TURBO_DIR=$TF_PREFIX/turbopfor
   [ -e "$TF_PREFIX/libsodium/include/sodium.h" ] && export LIBSODIUM_ROOT_DIR=$TF_PREFIX/libsodium
-  if [ "${GPU:-0}" = 1 ] && [ -e "$TF_PREFIX/cusz/include/cusz/cusz.h" ]; then
+  if [ "${PDC_GPU:-0}" = 1 ] && [ -e "$TF_PREFIX/cusz/include/cusz/cusz.h" ]; then
     export CUDA_ROOT_DIR=${CUDA_ROOT_DIR:-$CUDA_HOME} CUSZ_GPU_DIR=$TF_PREFIX/cusz
   fi
   for d in zfp sz3 libsodium cusz; do
@@ -117,7 +117,7 @@ tf_clone() {   # <url> <ref> <dir>
 
 build_zfp() {
   local cuda=()
-  [ "${GPU:-0}" = 1 ] && cuda=(-DZFP_WITH_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES="${CUDA_ARCH:-80}")
+  [ "${PDC_GPU:-0}" = 1 ] && cuda=(-DZFP_WITH_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES="${CUDA_ARCH:-80}")
   tf_clone https://github.com/LLNL/zfp.git 1.0.1 "$SRC/zfp"
   cmake -S "$SRC/zfp" -B "$SRC/build-zfp" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$TF_PREFIX/zfp" \
     -DBUILD_TESTING=OFF -DBUILD_UTILITIES=OFF "${cuda[@]}"
@@ -155,6 +155,6 @@ build_tf() {
   need "$TF_PREFIX/sz3/include/SZ3c/sz3c.h" sz3
   need "$TF_PREFIX/turbopfor/libic.a" turbopfor
   need "$TF_PREFIX/libsodium/include/sodium.h" libsodium
-  [ "${GPU:-0}" = 1 ] && need "$TF_PREFIX/cusz/include/cusz/cusz.h" cusz
+  [ "${PDC_GPU:-0}" = 1 ] && need "$TF_PREFIX/cusz/include/cusz/cusz.h" cusz
   tf_env
 }
