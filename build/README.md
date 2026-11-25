@@ -3,7 +3,7 @@
 One directory per machine: `local` (Linux workstation or laptop, WSL
 included), `perlmutter` and `tuolumne`. Each has an `env.sh` to source and a
 `build.sh` that builds libfabric (except on Perlmutter, which uses
-cray-libfabric), Mercury and PDC.
+the default one), Mercury and PDC.
 
     build/perlmutter/build.sh           # everything
     build/perlmutter/build.sh pdc       # PDC only, after editing it

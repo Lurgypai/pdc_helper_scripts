@@ -1,7 +1,7 @@
 #!/bin/bash
 # Build Mercury and PDC on Perlmutter (login node).
 #   build/perlmutter/build.sh [mercury] [pdc]    default: both
-# libfabric is the system one (cray-libfabric, cxi and tcp providers): the
+# libfabric is the system one from the default environment (cxi and tcp providers): the
 # docs' libfabric 1.18.0 has no cxi provider. Mercury 2.2.0 cannot use cxi (it
 # sets av_attr.rx_ctx_bits, which cxi rejects) and 2.4.0 does not compile
 # against libfabric 2.x, so this builds 2.4.1 (MERCURY_REF), which also takes
@@ -14,7 +14,7 @@ MERCURY_REF=${MERCURY_REF:-v2.4.1}
 J=${J:-16}
 SRC=$PDC_PREFIX/src
 mkdir -p "$SRC"
-pkg-config --exists libfabric || { echo "libfabric not found by pkg-config (module load cray-libfabric?)" >&2; exit 1; }
+pkg-config --exists libfabric || { echo "libfabric from the default environment not found by pkg-config" >&2; exit 1; }
 
 build_mercury() {
   [ -d "$SRC/mercury" ] || git clone -q --recurse-submodules https://github.com/mercury-hpc/mercury.git "$SRC/mercury"
