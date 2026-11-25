@@ -14,7 +14,7 @@ MERCURY_REF=${MERCURY_REF:-v2.4.1}
 J=${J:-16}
 SRC=$PDC_PREFIX/src
 mkdir -p "$SRC"
-pkg-config --exists libfabric || { echo "libfabric not found by pkg-config (module load cray-libfabric?)" >&2; exit 1; }
+pkg-config --exists libfabric || { echo "libfabric not found by pkg-config (try: module avail libfabric)" >&2; exit 1; }
 
 build_mercury() {
   [ -d "$SRC/mercury" ] || git clone -q --recurse-submodules https://github.com/mercury-hpc/mercury.git "$SRC/mercury"
