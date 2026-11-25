@@ -8,8 +8,7 @@ the default one), Mercury, the in-flight transformation libraries and PDC.
 
 The transformation libraries are ZFP 1.0.1, SZ3 v3.4.0, TurboPFor and
 libsodium 1.0.20 (the versions PDC's CI uses), installed under
-`$PDC_PREFIX/tf`. With `GPU=1` (the default on Perlmutter when a CUDA toolkit
-is loaded) ZFP is built with CUDA and cuSZ is added, which turns on the GPU
+`$PDC_PREFIX/tf`. With `GPU=1` (off by default) ZFP is built with CUDA and cuSZ is added, which turns on the GPU
 transformations. `env.sh` exports the variables PDC's CMake looks for
 (`ZFP_ROOT_DIR`, `SZ_CPU_DIR`, `TURBO_DIR`, `LIBSODIUM_ROOT_DIR`,
 `CUDA_ROOT_DIR`, `CUSZ_GPU_DIR`) and puts the libraries on `LD_LIBRARY_PATH`.
