@@ -16,7 +16,7 @@ export MPICH_MAX_THREAD_SAFETY=multiple
 # PDC defaults to ofi+cxi on Perlmutter and picks cxi0:<pid> endpoints itself.
 unset HG_HOST
 
-export GPU=${GPU:-$([ -n "${CUDA_HOME:-}" ] && echo 1 || echo 0)}   # cuSZ, GPU ZFP and GPU vector_magnitude
+export GPU=${GPU:-0}   # GPU=1 adds cuSZ and CUDA ZFP (GPU transformations)
 # Transformation libraries (ZFP, SZ3, TurboPFor, libsodium, cuSZ) built by build.sh.
 source "$(dirname "${BASH_SOURCE[0]}")/../common.sh"
 tf_env
